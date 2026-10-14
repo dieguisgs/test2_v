@@ -1,5 +1,7 @@
 # Capa opcional de ajuste de forma
 
+> **VWAPS2:** documento heredado de VWAPS. La infraestructura (comandos, mapeo, salidas, MLflow, shape) es la misma; la metodología de relleno es la de spreads y sus parámetros están en `[spread]`. Ver [ALGORITMO.md](ALGORITMO.md). Las menciones a `basis_mode`, `tau_log`, historia, `cross` o `[eex_fallback]` no aplican aquí.
+
 [English](SHAPE.md) · [Algoritmo](ALGORITMO.md) · [Outputs](OUTPUT.es.md) · [Validación](BACKTEST.es.md#optional-shape-layer)
 
 Esta capa implementada se ejecuta **después del relleno normal** y está desactivada por

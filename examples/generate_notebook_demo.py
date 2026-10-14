@@ -129,8 +129,8 @@ def main() -> None:
     targets = list(dict.fromkeys([*base.tenors, *(f"M+{n}" for n in range(16))]))
     config = replace(
         base, tenors=targets, day_convention="calendar", weekend_offset=0,
-        basis_mode="additive", layer_hist="off", layer_local=True,
-        layer_correlation=False, layer_cross=False, layer_arbitrage=False,
+        spread_window=5, spread_weighting="ewma", spread_halflife=2.0,
+        anchor_rule="nearest", anchor_scope="same_kind", no_anchor="eex_ewma", layer_arbitrage=False,
         min_volume=0, max_anchor_dev=0, warmup_days=0,
         shape_mode="adjust", shape_adjust_originals=True,
         shape_original_weight=1.0, shape_max_abs_adjustment=10.0,

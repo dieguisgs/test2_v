@@ -25,8 +25,7 @@ MAPPING = ProductMap("TEST", "fill", "DE", "Base", "fixture.csv", "Base", "Europ
 @pytest.fixture
 def cfg():
     return replace(load_config(Path(__file__).resolve().parents[1] / "config.toml"),
-                   tenors=["M+1", "M+2"], basis_mode="additive", layer_hist="off",
-                   layer_local=True, layer_arbitrage=False, min_volume=0, max_anchor_dev=0)
+                   tenors=["M+1", "M+2"], layer_arbitrage=False, min_volume=0, max_anchor_dev=0)
 
 
 def _own(observations, reference=DAY):
@@ -41,19 +40,6 @@ def _book(prices, reference=DAY):
         period = resolve_tenor(label, reference)
         rows.append((reference, period.kind, period.start, price))
     return EexBook(pd.DataFrame(rows, columns=REQUIRED))
-
-
-@pytest.mark.parametrize("setting,value,error", [
-    ("layer_local", "false", "layers.local"),
-    ("layer_arbitrage", 1, "layers.arbitrage"),
-    ("tau_log", math.nan, "method.tau_log"),
-    ("min_volume", math.inf, "method.min_volume"),
-    ("shrink_k", True, "method.shrink_k"),
-    ("fallback_price_window", 1, "eex_fallback.price_window"),
-])
-def test_direct_engine_configuration_fails_before_calculations(cfg, setting, value, error):
-    with pytest.raises(ValueError, match=error):
-        CurveFiller(replace(cfg, **{setting: value}), _own([]), [MAPPING], {MAPPING.key: None})
 
 
 @pytest.mark.parametrize("volumes,expected,expected_volume", [
@@ -83,21 +69,6 @@ def test_duplicate_aggregation_and_refill_do_not_depend_on_row_order(
     assert all(value == predictions[0] for value in predictions)
 
 
-def test_unknown_duplicate_volume_remains_eligible_under_min_volume(cfg):
-    cfg = replace(cfg, min_volume=5)
-    own = _own([("M+1", 110.0, math.nan), ("M+1", 120.0, math.nan)])
-    result = CurveFiller(cfg, own, [MAPPING], {
-        MAPPING.key: _book({"M+1": 100.0, "M+2": 100.0}),
-    }).run(DAY, DAY)
-    rows = result.filled.set_index("tenor")
-    assert not result.errors
-    assert math.isnan(rows.loc["M+1", "own_volume"])
-    assert rows.loc["M+1", "price"] == pytest.approx(115.0)
-    assert rows.loc["M+1", "flag"] == ""
-    assert rows.loc["M+2", "source"] == "eex+local"
-    assert rows.loc["M+2", "basis_local"] == pytest.approx(15.0)
-
-
 @pytest.mark.parametrize("prices,expected", [
     ((-100.0, 0.0, 100.0), 0.0),
     ((-1e308, 0.0, 1e308), 0.0),
@@ -111,32 +82,6 @@ def test_aggregation_accepts_zero_negative_and_large_finite_prices(cfg, prices, 
     assert quote.vwap == pytest.approx(expected)
     assert math.isfinite(quote.vwap)
     assert quote.volume == pytest.approx(3e300)
-
-
-@pytest.mark.parametrize("reference,labels,target,canonical_kind", [
-    (date(2026, 9, 29), ["D+1", "BOM"], "D+2", "Day"),
-    (date(2026, 9, 25), ["WE", "BOW"], "WE+1", "Weekend"),
-])
-def test_alias_family_and_history_are_independent_of_row_order(
-        cfg, reference, labels, target, canonical_kind):
-    cfg = replace(cfg, tenors=[target])
-    book = _book({labels[0]: 100.0, target: 100.0}, reference)
-    outputs = []
-    for ordering in permutations(labels):
-        own = _own([(label, 110.0, 10.0) for label in ordering], reference)
-        engine = CurveFiller(cfg, own, [MAPPING], {MAPPING.key: book})
-        series = engine._build_series()[0]
-        prep = engine._prep(series, reference)
-        assert len(prep.anchors) == 1
-        anchor = prep.anchors[0]
-        assert anchor.period.kind == canonical_kind
-        assert anchor.volume == 20.0
-        assert anchor.tenor == ",".join(sorted(labels))
-        outputs.append(engine._fill(series, reference, {series.key: prep}))
-        engine._update([series], reference, {series.key: prep})
-        assert set(series.hist["additive"].values) == {canonical_kind, "short", "all"}
-    for field in ("price", "local_weight", "basis_local", "anchors"):
-        assert outputs[0][0][field] == outputs[1][0][field]
 
 
 def test_repeated_alias_label_is_listed_once_without_discarding_observations(cfg):
@@ -165,29 +110,6 @@ def test_loo_scores_the_canonical_kind_when_residual_alias_sorts_first(cfg):
     assert score["kind"] == "Day"
     assert score["pred"] == rows.loc["D+1", "price"]
     assert rows.loc["BOM", "price"] != rows.loc["D+1", "price"]
-
-
-@pytest.mark.parametrize("rejection", ["volume", "deviation", "ratio"])
-def test_arbitrage_cannot_reuse_rejected_original_by_adding_it_to_targets(cfg, rejection):
-    cfg = replace(cfg, layer_arbitrage=True, layer_local=False,
-                  min_volume=5 if rejection == "volume" else 0,
-                  max_anchor_dev=0.5 if rejection == "deviation" else 0,
-                  basis_mode="ratio" if rejection == "ratio" else "additive")
-    own = _own([("M+1", 100.0, 20.0), ("M+2", 900.0, 1.0), ("M+3", 100.0, 20.0)])
-    book = _book({"M+1": 100.0, "M+2": 100.0, "M+3": 100.0})
-    for labels in (["Q+1"], ["M+1", "M+2", "M+3", "Q+1"]):
-        result = CurveFiller(replace(cfg, tenors=labels), own, [MAPPING], {
-            MAPPING.key: book,
-        }).run(DAY, DAY)
-        assert not result.errors
-        rows = result.filled.set_index("tenor")
-        assert rows.loc["Q+1", "source"] == "missing"
-        assert math.isnan(rows.loc["Q+1", "price"])
-        if "M+2" in labels:
-            assert rows.loc["M+2", "price"] == 900.0
-            assert rows.loc["M+2", "source"] == "own"
-            assert rows.loc["M+2", "data_origin"] == "original"
-            assert rows.loc["M+2", "flag"] == "anchor_excluded"
 
 
 @pytest.mark.parametrize("volume,eligible", [(1.0, False), (0.0, False), (5.0, True), (math.nan, True)])

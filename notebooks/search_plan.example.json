@@ -1,19 +1,41 @@
 {
   "search_scope": "individual",
   "selected_curves": [
-    {"product": "SYNTHETIC_POWER", "region": "DE", "unit": "EUR/MWh"},
-    {"product": "SYNTHETIC_POWER", "region": "FR", "unit": "EUR/MWh"}
+    {
+      "product": "SYNTHETIC_POWER",
+      "region": "DE",
+      "unit": "EUR/MWh"
+    },
+    {
+      "product": "SYNTHETIC_POWER",
+      "region": "FR",
+      "unit": "EUR/MWh"
+    }
   ],
   "parameter_grid": {
-    "basis_mode": ["auto", "ratio", "additive"],
-    "layer_hist": ["off", "auto"]
+    "anchor_rule": [
+      "nearest",
+      "interpolate"
+    ],
+    "no_anchor": [
+      "eex_ewma",
+      "eex_level"
+    ]
   },
   "product_grids": [
     {
-      "product": "SYNTHETIC_POWER", "region": "DE", "unit": "EUR/MWh",
+      "product": "SYNTHETIC_POWER",
+      "region": "DE",
+      "unit": "EUR/MWh",
       "parameter_grid": {
-        "basis_mode": ["auto", "additive"],
-        "tau_log": [0.35, 0.75]
+        "spread_window": [
+          3,
+          5
+        ],
+        "spread_halflife": [
+          1.0,
+          2.0
+        ]
       }
     }
   ]

@@ -128,7 +128,7 @@ def test_refill_preserves_input_and_completes_each_reference_curve(project):
     assert blank["curve_row_type"] == "original_invalid"
     assert blank["data_origin"] == "estimated"
     assert 110 < float(blank["curve_price"]) < 115.5
-    assert blank["estimation_method"].startswith("ratio_local")
+    assert blank["estimation_method"].startswith("spread_")
 
     added = enriched[enriched["curve_row_type"] == "added"]
     assert set(zip(added["curve_reference_date"], added["tenor2"])) == {
@@ -170,7 +170,7 @@ def test_excel_override_preserves_originals_and_completes_missing_prices(project
     assert blank["vwap"] == ""
     assert blank["data_origin"] == "estimated"
     assert 110 < float(blank["curve_price"]) < 115.5
-    assert blank["estimation_method"].startswith("ratio_local")
+    assert blank["estimation_method"].startswith("spread_")
 
     added = enriched[enriched["curve_row_type"] == "added"]
     assert len(added) == 3
@@ -302,7 +302,7 @@ def test_same_product_curves_fill_and_upsert_independently(project, use_aliases)
         assert len(curve) == 3
         blank = curve[curve["trade_id"] == f"00{i}-blank"].iloc[0]
         assert blank["vwap"] == "" and blank["data_origin"] == "estimated"
-        assert blank["estimation_method"].startswith("ratio_local")
+        assert blank["estimation_method"].startswith("spread_")
         assert 100 * (i + 1) + 20 < float(blank["curve_price"]) < 100 * (i + 1) + 35
         added = curve[curve["curve_row_type"] == "added"].iloc[0]
         assert added["market_area" if use_aliases else "region"] == region

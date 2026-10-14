@@ -30,7 +30,7 @@ from vwaps.tenors import resolve_tenor
 
 
 TUNABLE_FIELDS = (
-    "basis_mode", "tau_log", "shrink_k", "layer_hist", "layer_correlation", "layer_cross",
+    "spread_window", "spread_halflife", "spread_weighting", "anchor_rule", "anchor_scope", "no_anchor",
 )
 # Targets describe the task, not a competing model: changing them between
 # candidates would compare different delivery contracts.
@@ -48,15 +48,15 @@ class TuneResult:
 
 
 def _validate_value(field: str, value) -> None:
-    if field == "basis_mode" and value not in ("auto", "ratio", "additive"):
-        raise ValueError("Tuning basis_mode values must be auto, ratio or additive")
-    if field == "layer_hist" and value not in ("auto", "on", "off"):
-        raise ValueError("Tuning layer_hist values must be auto, on or off")
-    if field in ("layer_correlation", "layer_cross") and not isinstance(value, bool):
-        raise ValueError(f"Tuning {field} values must be booleans")
-    if field in ("tau_log", "shrink_k"):
+    choices = {"spread_weighting": ("ewma", "simple"), "anchor_rule": ("nearest", "interpolate"),
+               "anchor_scope": ("same_kind", "any"), "no_anchor": ("eex_ewma", "eex_level", "missing")}
+    if field in choices and value not in choices[field]:
+        raise ValueError(f"Tuning {field} values must be one of {choices[field]}")
+    if field == "spread_window" and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+        raise ValueError("Tuning spread_window values must be integers >= 1")
+    if field == "spread_halflife":
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
-            raise ValueError(f"Tuning {field} values must be finite positive numbers")
+            raise ValueError("Tuning spread_halflife values must be finite positive numbers")
 
 
 def _candidates(cfg: Config, grid: dict[str, list], max_trials: int, *, extended_grid: bool = False) -> list[dict]:
@@ -294,7 +294,7 @@ def tune_parameters(
         candidates = [{}]
     # Candidate filters affect available anchors, never which truths are scored.
     evaluation_configs = None
-    if fixed_evaluation or {"min_volume", "max_anchor_dev", "ratio_eex_floor"}.intersection(parameter_grid):
+    if fixed_evaluation or {"min_volume", "max_anchor_dev"}.intersection(parameter_grid):
         evaluation_configs = {
             mapping.key: replace(effective_config(engine_cfg, mapping), min_volume=0.0, max_anchor_dev=0.0)
             for mapping in maps if mapping.active and mapping.use == "fill"

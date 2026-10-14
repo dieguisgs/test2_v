@@ -1,5 +1,7 @@
 # Optional shape layer
 
+> **VWAPS2:** document inherited from VWAPS. The infrastructure (commands, mapping, outputs, MLflow, shape) is the same; gap filling uses the spread methodology configured in `[spread]`. See [ALGORITHM.md](ALGORITHM.md). References to `basis_mode`, `tau_log`, history, `cross` or `[eex_fallback]` do not apply here.
+
 [Español](SHAPE.es.md) · [Algorithm](ALGORITHM.md) · [Outputs](OUTPUT.md) · [Validation](BACKTEST.md#optional-shape-layer)
 
 This implemented layer runs **after the normal refill calculation** and is disabled by default.

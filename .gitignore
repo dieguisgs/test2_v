@@ -6,6 +6,7 @@
 !/mappings/products.individual.example.csv
 /output/
 /output_*/
+/comparison/
 /dist/
 
 # Environments, caches and machine-specific files.

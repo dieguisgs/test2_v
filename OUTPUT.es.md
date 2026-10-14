@@ -1,5 +1,7 @@
 # Diccionario de salidas
 
+> **VWAPS2:** documento heredado de VWAPS. La infraestructura (comandos, mapeo, salidas, MLflow, shape) es la misma; la metodología de relleno es la de spreads y sus parámetros están en `[spread]`. Ver [ALGORITMO.md](ALGORITMO.md). Las menciones a `basis_mode`, `tau_log`, historia, `cross` o `[eex_fallback]` no aplican aquí.
+
 Versión inglesa: [OUTPUT.md](OUTPUT.md). Reglas de cálculo: [ALGORITMO.md](ALGORITMO.md). Capa final opcional: [SHAPE.es.md](SHAPE.es.md).
 
 Todas las claves de curva utilizan **fecha de referencia + product + region + unit + etiqueta de tenor**. Una región o unidad vacía es un valor literal de identidad. Los precios y errores absolutos usan la `unit` de su fila; no se convierten divisas. Los CSV usan UTF-8 con BOM, separador de coma y cabecera. Una celda numérica o de fecha vacía significa no disponible o no aplicable, nunca cero. Los precios cero y negativos son valores finitos válidos.

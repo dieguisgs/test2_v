@@ -2,7 +2,6 @@ from datetime import date
 
 import pytest
 
-from vwaps.basis import apply_basis, to_basis
 from vwaps.hours import hours_fn, period_hours
 from vwaps.pricer import Pricer
 from vwaps.tenors import period_from_eex, resolve_tenor
@@ -75,23 +74,6 @@ def test_residual_bom():
     assert how == "residual"
     # 20 days at 140 + 10 days at p = 30 days at 150  ->  p = 170.
     assert p == pytest.approx(170.0)
-
-
-def test_ratio_equals_anchor_times_eex_ratio():
-    own_m1, ex_m1, ex_m2 = 158.5, 157.7, 163.61
-    b = to_basis(own_m1, ex_m1, "ratio")
-    assert apply_basis(ex_m2, b, "ratio") == pytest.approx(own_m1 * ex_m2 / ex_m1)
-    b = to_basis(own_m1, ex_m1, "additive")
-    assert apply_basis(ex_m2, b, "additive") == pytest.approx(own_m1 + ex_m2 - ex_m1)
-
-
-def test_ewcov_beta_and_corr():
-    from vwaps.comove import EWCov
-    c = EWCov(20)
-    for x in (0.01, -0.02, 0.015, -0.005, 0.02):
-        c.update(x, 0.8 * x)  # y changes by 0.8 for each unit change in x.
-    assert c.beta == pytest.approx(0.8)
-    assert c.corr == pytest.approx(1.0)
 
 
 def test_mapping_guess(tmp_path):

@@ -6,73 +6,10 @@ import pandas as pd
 import pytest
 
 from vwaps.backtest import compare_truth, summarize_loo
-from vwaps.comove import EWCov
 from vwaps.io_eex import EexBook
 from vwaps.mapping import ProductMap
 from vwaps.synthetic import OBS_PROB, make_synthetic
 from vwaps.tenors import resolve_tenor
-
-
-def test_ewcov_matches_centered_exponentially_weighted_moments():
-    x = np.array([12.0, 9.0, 13.0, 10.0, 15.0])
-    y = np.array([24.0, 28.0, 22.0, 26.0, 19.0])
-    cov = EWCov(3)
-    for a, b in zip(x, y):
-        cov.update(float(a), float(b))
-    weights = cov.lam ** np.arange(len(x) - 1, -1, -1)
-    dx, dy = x - np.average(x, weights=weights), y - np.average(y, weights=weights)
-    expected_cov = np.sum(weights * dx * dy)
-    vx, vy = np.sum(weights * dx**2), np.sum(weights * dy**2)
-    assert cov.n == pytest.approx(weights.sum())
-    assert cov.corr == pytest.approx(expected_cov / np.sqrt(vx * vy))
-    assert cov.beta == pytest.approx(expected_cov / vx)
-
-
-def test_ewcov_is_invariant_to_nonzero_mean():
-    cov = EWCov(20)
-    for x in (1.0, 4.0, -2.0, 3.0):
-        cov.update(x + 100.0, 7.0 + 0.8 * x)
-    assert cov.corr == pytest.approx(1.0)
-    assert cov.beta == pytest.approx(0.8)
-
-
-def test_ewcov_uses_elapsed_days_when_dates_are_supplied():
-    cov = EWCov(10)
-    start = date(2026, 9, 1)
-    cov.update(1.0, 2.0, start)
-    cov.update(3.0, 6.0, start + timedelta(days=10))
-    assert cov.n == pytest.approx(1.5)
-    assert cov.corr == pytest.approx(1.0)
-    assert cov.beta == pytest.approx(2.0)
-    assert cov.last_day == start + timedelta(days=10)
-    with pytest.raises(ValueError, match="chronological"):
-        cov.update(4.0, 8.0, start)
-    assert cov.last_day == start + timedelta(days=10)
-
-
-@pytest.mark.parametrize("points", [
-    [(1.0, 1.0)] * 10,
-    [(1.0, float(i)) for i in range(10)],
-    [(float(i), 1.0) for i in range(10)],
-    [(0.01, 0.02)],
-])
-def test_ewcov_does_not_claim_relationship_without_variance(points):
-    cov = EWCov(20)
-    for x, y in points:
-        cov.update(x, y)
-    assert cov.corr is None
-    assert cov.beta is None
-
-
-@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
-def test_ewcov_rejects_invalid_observations_without_poisoning_state(bad):
-    cov = EWCov(20)
-    cov.update(1.0, 2.0)
-    cov.update(2.0, 4.0)
-    previous = cov.n, cov.corr, cov.beta
-    with pytest.raises(ValueError, match="finite"):
-        cov.update(bad, 3.0)
-    assert (cov.n, cov.corr, cov.beta) == previous
 
 
 def test_synthetic_deduplicates_labels_and_keeps_aliases_consistent(monkeypatch):

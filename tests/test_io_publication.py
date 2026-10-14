@@ -284,7 +284,7 @@ def test_explicit_weekend_daily_uses_available_history_and_eex(project):
     filled = pd.read_csv(cfg.output_dir / "filled_history.csv")
     assert set(filled.reference_date) == {SATURDAY.isoformat()}
     assert filled.price.notna().all()
-    assert set(filled.source) == {"eex+hist"}
+    assert set(filled.source) == {"eex_ewma"}
 
 
 def test_refill_includes_invalid_original_weekend_and_matches_catchup(project):

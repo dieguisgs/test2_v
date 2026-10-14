@@ -1,5 +1,7 @@
 # Global or individual model configuration
 
+> **VWAPS2:** document inherited from VWAPS. The infrastructure (commands, mapping, outputs, MLflow, shape) is the same; gap filling uses the spread methodology configured in `[spread]`. See [ALGORITHM.md](ALGORITHM.md). References to `basis_mode`, `tau_log`, history, `cross` or `[eex_fallback]` do not apply here.
+
 [Español](CONFIGURATION.es.md) · [Algorithm](ALGORITHM.md) · [Backtest](BACKTEST.md) · [MLflow](MLFLOW.md)
 
 There are two separate choices. **Production configuration** determines the fixed settings

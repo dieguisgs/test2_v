@@ -16,7 +16,7 @@ from vwaps.tuning import _candidates, _check_holdout_coverage, _paired, tune_par
 def dataset(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text("", encoding="utf-8")
-    cfg = replace(load_config(path), tenors=["M+1", "M+2"], layer_hist="off", basis_mode="additive")
+    cfg = replace(load_config(path), tenors=["M+1", "M+2"])
     mapping = ProductMap("P", "fill", "DE", "Base", "eex.csv", "Base", "Europe/Berlin",
                          region="DE", unit="EUR/MWh")
     days = list(pd.bdate_range("2026-09-21", periods=5).date)
@@ -49,25 +49,6 @@ def test_eex_offset_is_not_a_tunable_model_parameter(dataset, extended):
         _candidates(dataset[0], {"eex_offset_days": [0, -1]}, 2, extended_grid=extended)
 
 
-def test_tuning_records_fixed_offset_and_uses_its_baseline(dataset):
-    cfg, own, maps, books, days = dataset
-    captured = []
-    def observer(event, payload):
-        if event == "calibration_evaluated":
-            captured.append(payload["available"])
-    result = tune_parameters(replace(cfg, eex_offset_days=-1), own, maps, books, days[0], days[-1],
-                             {"basis_mode": ["additive"]}, 1, 1, observer=observer)
-    first = captured[0].loc[captured[0].reference_date.eq(days[0])].set_index("tenor")
-    assert first.loc["M+1", "eex_pred"] == 100
-    assert first.loc["M+2", "eex_pred"] == 200
-    assert first.loc["M+1", "eex_asof"] == date(2026, 9, 18)
-    assert first.loc["M+1", "eex_cutoff_date"] == date(2026, 9, 20)
-    assert first.loc["M+1", "eex_offset_days"] == -1
-    assert result.metadata["eex_offset_days"] == -1
-    assert result.metadata["eex_staleness_origin"] == "reference_date"
-    assert "eex_offset_days" not in result.selected_config
-
-
 def test_paired_predictions_retain_available_baseline_policy_fields():
     day = date(2026, 9, 21)
     key = dict(reference_date=day, product="P", region="DE", unit="EUR/MWh", tenor="M+1", own=110)
@@ -82,13 +63,3 @@ def test_paired_predictions_retain_available_baseline_policy_fields():
     assert paired.loc[0, "error_eex"] == -10
 
 
-def test_changing_holdout_truth_does_not_change_selection_under_offset(dataset):
-    cfg, own, maps, books, days = dataset
-    cfg = replace(cfg, eex_offset_days=-1)
-    args = (maps, books, days[0], days[-1], {"basis_mode": ["ratio", "additive"]}, 1, 2)
-    before = tune_parameters(cfg, own, *args)
-    changed = own.copy()
-    changed.loc[changed.date.eq(days[-1]), "vwap"] += 20
-    after = tune_parameters(cfg, changed, *args)
-    assert before.selected_config == after.selected_config
-    pd.testing.assert_frame_equal(before.calibration_report, after.calibration_report)

@@ -108,8 +108,7 @@ def test_empty_file_with_required_headers_is_supported(tmp_path, eex_logs):
 
 def test_infinite_eex_target_becomes_missing_without_poisoning_finite_curve_points():
     cfg = replace(load_config(Path(__file__).resolve().parents[1] / "config.toml"),
-                  tenors=["M+1", "M+2", "M+3"], layer_hist="off", layer_arbitrage=False,
-                  layer_cross=False, layer_correlation=False)
+                  tenors=["M+1", "M+2", "M+3"], layer_arbitrage=False)
     mapping = ProductMap("DE_Base load", "fill", "DE", "Base", "fixture.csv", "Base",
                          "Europe/Berlin", region="DE", unit="EUR/MWh")
     own = pd.DataFrame([dict(date=DAY, product=mapping.product, region=mapping.region,

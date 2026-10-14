@@ -82,14 +82,10 @@ def make_demo_dataset(cfg: Config, *, seed: int = 7, periods: int = 30) -> Exper
     demo_cfg = replace(
         cfg, tenors=["D+1", "M+1", "M+2", "M+3", "Q+1", "Q+2"],
         day_convention="calendar", weekend_offset=0, min_volume=0.0,
-        max_anchor_dev=0.0, warmup_days=0, layer_local=True,
-        layer_hist="auto", layer_correlation=False, layer_cross=False,
+        max_anchor_dev=0.0, warmup_days=0,
         layer_arbitrage=False, shape_mode="off", shape_adjust_originals=False,
-        basis_mode="auto", tau_log=0.5, shrink_k=1.0, other_kind_weight=0.6,
-        ewma_halflife_days=10.0, hist_max_age_days=60, hist_auto_min_obs=10.0,
-        ratio_eex_floor=1.0, max_ratio_deviation=1.0, max_stale_days=None,
-        fallback_price_method="ewma", fallback_price_window=5,
-        fallback_ewma_halflife=2.0, fallback_spread_window=9, fallback_anchor_months=2,
+        max_stale_days=None, spread_window=5, spread_weighting="ewma", spread_halflife=2.0,
+        spread_min_obs=1, anchor_rule="nearest", anchor_scope="same_kind", no_anchor="eex_ewma",
     )
     validate_config(demo_cfg)
     days = list(pd.bdate_range("2026-08-24", periods=periods).date)

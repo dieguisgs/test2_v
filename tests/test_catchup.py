@@ -126,7 +126,7 @@ def test_catchup_replays_original_history_and_matches_refill_and_daily(tmp_path)
     pd.testing.assert_frame_equal(actual, expected)
     expected_last = expected[expected.reference_date == days[-1].isoformat()].reset_index(drop=True)
     pd.testing.assert_frame_equal(daily, expected_last)
-    assert set(expected_last.source) == {"eex+hist"}
+    assert set(expected_last.source) == {"eex_ewma"}
 
 
 def test_observed_weekend_with_invalid_vwap_is_forced_into_the_schedule(tmp_path):

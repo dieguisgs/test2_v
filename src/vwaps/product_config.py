@@ -25,29 +25,22 @@ if TYPE_CHECKING:
 
 MODEL_PARAMETER_FIELDS = (
     "tenors",
-    "layer_local", "layer_correlation", "layer_cross", "layer_hist", "layer_arbitrage",
-    "basis_mode", "min_volume", "tau_log", "other_kind_weight", "shrink_k",
-    "ewma_halflife_days", "max_anchor_dev", "hist_auto_min_obs", "ratio_eex_floor",
-    "max_ratio_deviation", "hist_max_age_days",
-    "corr_halflife_days", "corr_prior_obs",
-    "cross_min_corr", "cross_min_obs", "cross_halflife_days",
-    "fallback_price_method", "fallback_price_window", "fallback_ewma_halflife",
-    "fallback_spread_window", "fallback_anchor_months",
+    "layer_arbitrage", "min_volume", "max_anchor_dev",
+    "spread_window", "spread_weighting", "spread_halflife", "spread_min_obs",
+    "anchor_rule", "anchor_scope", "no_anchor",
     "shape_mode", "shape_adjust_originals", "shape_smoothness_weight",
     "shape_coherence_weight", "shape_max_abs_adjustment", "shape_original_weight",
     "shape_coherence_tolerance",
 )
 
 _BOOL_FIELDS = frozenset((
-    "layer_local", "layer_correlation", "layer_cross", "layer_arbitrage",
-    "shape_adjust_originals",
+    "layer_arbitrage", "shape_adjust_originals",
 ))
 _INT_FIELDS = frozenset((
-    "hist_max_age_days", "fallback_price_window", "fallback_spread_window",
-    "fallback_anchor_months",
+    "spread_window", "spread_min_obs",
 ))
 _STRING_FIELDS = frozenset((
-    "layer_hist", "basis_mode", "fallback_price_method", "shape_mode",
+    "spread_weighting", "anchor_rule", "anchor_scope", "no_anchor", "shape_mode",
 ))
 _FLOAT_FIELDS = frozenset(MODEL_PARAMETER_FIELDS) - (
     _BOOL_FIELDS | _INT_FIELDS | _STRING_FIELDS | {"tenors"})
@@ -176,20 +169,18 @@ def configuration_context_records(
     maps: list[ProductMap],
     curve_parameters: dict[CurveKey, dict] | None = None,
 ) -> dict[CurveKey, dict[str, Any]]:
-    """Fingerprint the operational and helper context of each active receiver.
+    """Fingerprint the operational context of each active receiver.
 
     ``configuration_id`` already describes the receiver's own model settings.
-    This complementary identifier covers its delivery mapping, the shared
-    availability/calendar policy, and every other active curve's mapping and
-    effective model parameters when CROSS is enabled for the receiver. A
-    potential helper is included even if it contributes no shock on one date:
-    changing its filters or memory can alter learned cross relationships.
+    This complementary identifier covers its delivery mapping and the shared
+    availability/calendar policy. The spread method fills each curve on its
+    own, so other curves never enter the context (``cross_helpers`` stays
+    empty and keeps the output schema of the original project).
 
     Receiver parameters are deliberately absent, so expanding its target list
-    does not change its context fingerprint. With CROSS disabled, unrelated
-    curves do not affect this identifier. Input prices and absolute local paths
-    are not data-versioned here; the document records calculation settings.
-    Returned documents are independent of caller-owned mutable values.
+    does not change its context fingerprint. Input prices and absolute local
+    paths are not data-versioned here; the document records calculation
+    settings. Returned documents are independent of caller-owned mutable values.
     """
     validate_config(cfg)
     active = [mapping for mapping in maps if mapping.active]
@@ -200,7 +191,8 @@ def configuration_context_records(
     unknown = set(overlays) - set(keys)
     if unknown:
         raise ValueError(f"Context parameter overrides contain inactive or unmapped curves: {sorted(unknown)}")
-    settings = {mapping.key: effective_config(cfg, mapping, overlays.get(mapping.key)) for mapping in active}
+    for mapping in active:  # Validate every effective curve configuration.
+        effective_config(cfg, mapping, overlays.get(mapping.key))
 
     def mapping_payload(mapping: ProductMap) -> dict[str, str]:
         return {name: getattr(mapping, name) for name in (
@@ -208,17 +200,14 @@ def configuration_context_records(
 
     operations = {name: getattr(cfg, name) for name in (
         "eex_offset_days", "max_stale_days", "day_convention", "weekend_offset", "warmup_days")}
-    helpers = {mapping.key: {**mapping_payload(mapping),
-                            "model_parameters": model_parameter_payload(settings[mapping.key])}
-               for mapping in active}
     records = {}
     for mapping in active:
         document = {
             "schema_version": 1,
             "receiver": mapping_payload(mapping),
             "operations": dict(operations),
-            "cross_helpers": [copy.deepcopy(helpers[key]) for key in sorted(helpers) if key != mapping.key]
-                if settings[mapping.key].layer_cross else [],
+            # The spread method never uses other curves.
+            "cross_helpers": [],
         }
         encoded = json.dumps(document, sort_keys=True, separators=(",", ":"),
                              ensure_ascii=False, allow_nan=False)

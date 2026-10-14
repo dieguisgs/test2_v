@@ -1,5 +1,7 @@
 # Comparar backtests en un notebook con MLflow
 
+> **VWAPS2:** documento heredado de VWAPS. La infraestructura (comandos, mapeo, salidas, MLflow, shape) es la misma; la metodología de relleno es la de spreads y sus parámetros están en `[spread]`. Ver [ALGORITMO.md](ALGORITMO.md). Las menciones a `basis_mode`, `tau_log`, historia, `cross` o `[eex_fallback]` no aplican aquí.
+
 [English](MLFLOW.md) · [Notebook](notebooks/backtest_mlflow.ipynb) · [Método del backtest](BACKTEST.es.md) · [README](README.es.md)
 
 Antes de interpretar los resultados, consulta los ejemplos de [qué precios se ocultan](BACKTEST.es.md#backtest-masking),

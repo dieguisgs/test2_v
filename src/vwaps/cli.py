@@ -30,7 +30,7 @@ from vwaps.publication import CsvBatch, publication_lock
 from vwaps.synthetic import make_synthetic
 from vwaps.tenors import parse_tenor, resolve_tenor
 
-SOURCES = ["own", "eex+local", "eex+cross", "eex+hist", "eex+smooth", "eex", "arbitrage", "missing"]
+SOURCES = ["own", "eex_spread", "eex_ewma", "eex_level", "arbitrage", "missing"]
 KEYS = ["reference_date", *IDENTITY_COLUMNS]
 ENRICHED_KEYS = [f"curve_{name}" for name in KEYS]
 
@@ -77,12 +77,15 @@ def main(argv: list[str], config_path: Path) -> int:
     p.add_argument("--from", dest="start", type=date.fromisoformat, default=None)
     p.add_argument("--to", dest="end", type=date.fromisoformat, default=None)
     p.add_argument("--vwap", default=None)
-    p.add_argument("--basis-modes", default="auto,ratio,additive", help="comma-separated calculation modes")
-    p.add_argument("--tau-log", default=None, help="comma-separated positive anchor-distance parameters; default: configured value")
-    p.add_argument("--shrink-k", default=None, help="comma-separated positive shrinkage parameters; default: configured value")
-    p.add_argument("--hist-modes", default=None, help="comma-separated on/off/auto; default: configured value")
-    p.add_argument("--correlation", default=None, help="comma-separated off/on; default: configured value")
-    p.add_argument("--cross", default=None, help="comma-separated off/on; default: configured value")
+    p.add_argument("--spread-windows", default=None,
+                   help="comma-separated EEX window sizes in publications; default: configured value")
+    p.add_argument("--spread-halflives", default=None,
+                   help="comma-separated positive EWMA half-lives in publications; default: configured value")
+    p.add_argument("--spread-weightings", default=None, help="comma-separated ewma/simple; default: configured value")
+    p.add_argument("--anchor-rules", default=None, help="comma-separated nearest/interpolate; default: configured value")
+    p.add_argument("--anchor-scopes", default=None, help="comma-separated same_kind/any; default: configured value")
+    p.add_argument("--no-anchor-modes", default=None,
+                   help="comma-separated eex_ewma/eex_level/missing; default: configured value")
     p.add_argument("--validation-days", type=int, default=20,
                    help="number of latest distinct observation dates reserved for validation")
     p.add_argument("--max-trials", type=int, default=50, help="maximum number of parameter combinations")
@@ -107,17 +110,21 @@ def main(argv: list[str], config_path: Path) -> int:
         parser.add_argument("--eex-offset-days", type=int, default=None,
                             help="latest allowed EEX publication is reference date plus this calendar-day "
                                  "offset (0 or negative); staleness remains measured from the reference date")
-        group = parser.add_argument_group("EEX fallback transformation (override config for this run)")
-        group.add_argument("--eex-price-method", dest="fallback_price_method", choices=("simple", "ewma"),
-                           default=None, help="finite-window price average: equal or exponential weights")
-        group.add_argument("--eex-price-window", dest="fallback_price_window", type=int, default=None,
-                           help="complete price window in EEX publication dates, at least 2")
-        group.add_argument("--eex-ewma-halflife", dest="fallback_ewma_halflife", type=float, default=None,
-                           help="positive exponential weight half-life in observations within the price window")
-        group.add_argument("--eex-spread-window", dest="fallback_spread_window", type=int, default=None,
-                           help="complete simple-average monthly spread window, at least 2 dates")
-        group.add_argument("--eex-anchor-months", dest="fallback_anchor_months", type=int, default=None,
-                           help="directly averaged months from the current calendar month, at least 1")
+        group = parser.add_argument_group("Spread method (override config for this run)")
+        group.add_argument("--spread-window", dest="spread_window", type=int, default=None,
+                           help="EEX publications in each smoothing window, at least 1")
+        group.add_argument("--spread-weighting", dest="spread_weighting", choices=("ewma", "simple"),
+                           default=None, help="exponential or equal weights inside the window")
+        group.add_argument("--spread-halflife", dest="spread_halflife", type=float, default=None,
+                           help="positive EWMA half-life in publications")
+        group.add_argument("--spread-min-obs", dest="spread_min_obs", type=int, default=None,
+                           help="minimum usable publications in a window")
+        group.add_argument("--anchor-rule", dest="anchor_rule", choices=("nearest", "interpolate"),
+                           default=None, help="one nearest anchor or both neighbours")
+        group.add_argument("--anchor-scope", dest="anchor_scope", choices=("same_kind", "any"),
+                           default=None, help="anchors of the same contract kind only, or any kind")
+        group.add_argument("--no-anchor", dest="no_anchor", choices=("eex_ewma", "eex_level", "missing"),
+                           default=None, help="estimate without own anchors")
         group = parser.add_argument_group("Optional curve shape adjustment (override config for this run)")
         group.add_argument("--shape-mode", choices=("off", "audit", "adjust"), default=None,
                            help="disable, propose without applying, or apply shape adjustments")
@@ -139,8 +146,8 @@ def main(argv: list[str], config_path: Path) -> int:
         cfg = load_config(a.config)
         setup_logging(cfg.output_dir / "_logs", " ".join(["run.py", *argv]))
         overrides = {name: getattr(a, name) for name in (
-            "fallback_price_method", "fallback_price_window", "fallback_ewma_halflife",
-            "fallback_spread_window", "fallback_anchor_months",
+            "spread_window", "spread_weighting", "spread_halflife", "spread_min_obs",
+            "anchor_rule", "anchor_scope", "no_anchor",
             "shape_mode", "shape_adjust_originals", "shape_smoothness_weight",
             "shape_coherence_weight", "shape_max_abs_adjustment", "shape_original_weight",
             "shape_coherence_tolerance", "eex_offset_days", "configuration_mode",
@@ -333,11 +340,11 @@ def _print_summary(filled: pd.DataFrame) -> None:
 
 
 def _layers(cfg: Config) -> str:
-    on = [n for n, v in [("local", cfg.layer_local), ("correlation", cfg.layer_correlation),
-                         ("cross", cfg.layer_cross), ("arbitrage", cfg.layer_arbitrage)] if v]
     return (f"Configuration: {cfg.configuration_mode}; global defaults: "
-            f"layers={', '.join(on)} | hist={cfg.layer_hist} | mode={cfg.basis_mode} "
-            f"| shape={cfg.shape_mode} | shape_adjust_originals={cfg.shape_adjust_originals} "
+            f"spread window={cfg.spread_window} {cfg.spread_weighting}"
+            f"{f' halflife={cfg.spread_halflife:g}' if cfg.spread_weighting == 'ewma' else ''} "
+            f"| anchors={cfg.anchor_rule}/{cfg.anchor_scope} | no_anchor={cfg.no_anchor} "
+            f"| arbitrage={cfg.layer_arbitrage} | shape={cfg.shape_mode} "
             f"| eex_offset_days={cfg.eex_offset_days}")
 
 
@@ -699,17 +706,23 @@ def cmd_backtest(cfg: Config, a) -> int:
     return 0
 
 
-def _grid_values(value: str | None, default, *, allowed=None, numeric=False) -> list:
+def _grid_values(value: str | None, default, *, allowed=None, numeric=None) -> list:
     """Parse explicit trial values without accepting empty or invalid options."""
     if value is None:
         return [default]
     values = [part.strip() for part in value.split(",")]
     if not values or any(not part for part in values):
         raise ValueError("Parameter grids require nonempty comma-separated values")
-    if numeric:
+    if numeric is int:
+        if any(not part.lstrip("+").isdigit() for part in values):
+            raise ValueError("Integer grid values must be whole positive numbers")
+        values = [int(part) for part in values]
+        if any(number < 1 for number in values):
+            raise ValueError("Integer grid values must be at least 1")
+    elif numeric:
         values = [float(part) for part in values]
         if any(not math.isfinite(number) or number <= 0 for number in values):
-            raise ValueError("tau-log and shrink-k grid values must be positive and finite")
+            raise ValueError("Numeric grid values must be positive and finite")
     elif allowed is not None and any(part not in allowed for part in values):
         raise ValueError(f"Grid values must be selected from {', '.join(allowed)}")
     return list(dict.fromkeys(values))
@@ -736,14 +749,12 @@ def cmd_tune(cfg: Config, a) -> int:
     cfg = replace(cfg, configuration_mode="global")
 
     grid = {
-        "basis_mode": _grid_values(a.basis_modes, cfg.basis_mode, allowed=("auto", "ratio", "additive")),
-        "tau_log": _grid_values(a.tau_log, cfg.tau_log, numeric=True),
-        "shrink_k": _grid_values(a.shrink_k, cfg.shrink_k, numeric=True),
-        "layer_hist": _grid_values(a.hist_modes, cfg.layer_hist, allowed=("auto", "on", "off")),
-        "layer_correlation": [item == "on" for item in _grid_values(
-            a.correlation, "on" if cfg.layer_correlation else "off", allowed=("off", "on"))],
-        "layer_cross": [item == "on" for item in _grid_values(
-            a.cross, "on" if cfg.layer_cross else "off", allowed=("off", "on"))],
+        "spread_window": _grid_values(a.spread_windows, cfg.spread_window, numeric=int),
+        "spread_halflife": _grid_values(a.spread_halflives, cfg.spread_halflife, numeric=True),
+        "spread_weighting": _grid_values(a.spread_weightings, cfg.spread_weighting, allowed=("ewma", "simple")),
+        "anchor_rule": _grid_values(a.anchor_rules, cfg.anchor_rule, allowed=("nearest", "interpolate")),
+        "anchor_scope": _grid_values(a.anchor_scopes, cfg.anchor_scope, allowed=("same_kind", "any")),
+        "no_anchor": _grid_values(a.no_anchor_modes, cfg.no_anchor, allowed=("eex_ewma", "eex_level", "missing")),
     }
     vw, _, maps, books = _load(cfg, a.vwap)
     if vw.empty:
@@ -751,11 +762,11 @@ def cmd_tune(cfg: Config, a) -> int:
     result = tune_parameters(cfg, vw, maps, books, a.start or min(vw["date"]),
                              a.end or max(vw["date"]), grid, a.validation_days, a.max_trials)
     selected = result.selected_config
-    patch = {
-        "method": {name: selected[name] for name in ("basis_mode", "tau_log", "shrink_k")},
-        "layers": {name.removeprefix("layer_"): selected[name]
-                   for name in ("layer_hist", "layer_correlation", "layer_cross")},
-    }
+    patch = {"spread": {
+        "window": selected["spread_window"], "halflife": selected["spread_halflife"],
+        "weighting": selected["spread_weighting"], "anchor_rule": selected["anchor_rule"],
+        "anchor_scope": selected["anchor_scope"], "no_anchor": selected["no_anchor"],
+    }}
     report = {"selected_parameters": patch, "metadata": result.metadata,
               "base_configuration": asdict(cfg), "input_pattern": a.vwap or cfg.vwap_input,
               "selection": "Calibration dates only; validation dates are evaluated after selection.",

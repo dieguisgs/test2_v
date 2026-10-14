@@ -1,5 +1,7 @@
 # Configuración global o individual del modelo
 
+> **VWAPS2:** documento heredado de VWAPS. La infraestructura (comandos, mapeo, salidas, MLflow, shape) es la misma; la metodología de relleno es la de spreads y sus parámetros están en `[spread]`. Ver [ALGORITMO.md](ALGORITMO.md). Las menciones a `basis_mode`, `tau_log`, historia, `cross` o `[eex_fallback]` no aplican aquí.
+
 [English](CONFIGURATION.md) · [Algoritmo](ALGORITMO.md) · [Backtest](BACKTEST.es.md) · [MLflow](MLFLOW.es.md)
 
 Hay dos decisiones diferentes. **La configuración de producción** indica los valores fijos

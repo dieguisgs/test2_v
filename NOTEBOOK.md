@@ -1,5 +1,7 @@
 # Inspect saved curves interactively
 
+> **VWAPS2:** document inherited from VWAPS. The infrastructure (commands, mapping, outputs, MLflow, shape) is the same; gap filling uses the spread methodology configured in `[spread]`. See [ALGORITHM.md](ALGORITHM.md). References to `basis_mode`, `tau_log`, history, `cross` or `[eex_fallback]` do not apply here.
+
 [Español](NOTEBOOK.es.md) · [Notebook](notebooks/inspect_curves.ipynb) · [Output dictionary](OUTPUT.md)
 
 The notebook reads **one filled output CSV only**, usually `filled_history.csv`. It does not

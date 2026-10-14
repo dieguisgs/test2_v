@@ -1,5 +1,7 @@
 # Output dictionary
 
+> **VWAPS2:** document inherited from VWAPS. The infrastructure (commands, mapping, outputs, MLflow, shape) is the same; gap filling uses the spread methodology configured in `[spread]`. See [ALGORITHM.md](ALGORITHM.md). References to `basis_mode`, `tau_log`, history, `cross` or `[eex_fallback]` do not apply here.
+
 Spanish version: [OUTPUT.es.md](OUTPUT.es.md). Calculation rules: [ALGORITHM.md](ALGORITHM.md). Optional final layer: [SHAPE.md](SHAPE.md).
 
 All curve keys use **reference date + product + region + unit + tenor label**. A blank region or unit is a literal identity value. Prices and absolute errors use the row's `unit`; currencies are not converted. CSV files use UTF-8 with BOM, comma separators and a header. Empty numeric/date cells mean unavailable or not applicable, not zero. Zero and negative prices are valid finite values.

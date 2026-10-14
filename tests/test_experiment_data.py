@@ -59,16 +59,6 @@ def test_invalid_demo_options_rejected(config, kwargs):
         make_demo_dataset(config, **kwargs)
 
 
-def test_demo_runs_actual_tuning_pipeline(config):
-    data = make_demo_dataset(config, periods=5)
-    result = tune_parameters(data.config, data.vwaps, data.maps, data.books, data.start, data.end,
-                             {"basis_mode": ["ratio", "additive"]}, 1, 2)
-    assert result.metadata["n_trials"] == 2
-    assert result.metadata["validation_days"] == 1
-    assert result.metadata["calibration_n_paired"] > 0
-    assert result.metadata["validation_coverage"] == 1
-
-
 @pytest.fixture
 def real_config(config):
     cfg = replace(config, mapping_file=config.base_dir / "mapping.csv",

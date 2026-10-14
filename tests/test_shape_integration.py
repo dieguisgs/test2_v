@@ -23,9 +23,7 @@ TENORS = [f"M+{i}" for i in range(1, 7)] + ["Q+2"]
 def setup(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text("", encoding="utf-8")
-    cfg = replace(load_config(path), tenors=TENORS, basis_mode="additive",
-                  layer_hist="off", layer_cross=False, layer_correlation=False,
-                  layer_arbitrage=False, shape_mode="adjust")
+    cfg = replace(load_config(path), tenors=TENORS, layer_arbitrage=False, shape_mode="adjust")
     mapping = ProductMap("P", "fill", "DE", "Base", "eex.csv", "Base", "Europe/Berlin",
                          region="DE", unit="EUR/MWh")
     prices = dict(zip(TENORS, [100, 110, 120, 150, 150, 150, 150]))
@@ -115,7 +113,7 @@ def test_observed_quarter_outside_targets_still_guides_shape_and_reaches_enrichm
 
 def test_shape_never_trains_history_and_daily_matches_refill(setup):
     cfg, _, _, own = setup
-    cfg = replace(cfg, layer_hist="on", shape_adjust_originals=True,
+    cfg = replace(cfg, shape_adjust_originals=True,
                   shape_original_weight=1.0)
     later = DAY + timedelta(days=1)
     baseline = run(setup, replace(cfg, shape_mode="off"), end=later)

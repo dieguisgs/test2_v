@@ -30,7 +30,7 @@ def own(product="DE_Base load", tenor="M+1", vwap=100.0, region="original region
                 total_volume=10, n_trades=2, **extra)
 
 
-def calculated(product="DE_Base load", tenor="M+2", price=110.0, source="eex+local",
+def calculated(product="DE_Base load", tenor="M+2", price=110.0, source="eex_spread",
                region="original region", unit=None, **extra):
     unit = unit if unit is not None else "GBP/MWh" if product.startswith("GB") else "EUR/MWh"
     return dict(reference_date=DAY, product=product, region=region, unit=unit, tenor=tenor, price=price,
@@ -180,13 +180,13 @@ def test_range_off_mapping_and_missing_estimates(cfg):
 
 def test_keeps_explicit_method_and_eex_trace(cfg):
     raw = pd.DataFrame([own()])
-    filled = pd.DataFrame([calculated(estimation_method="ratio_local_history_cross", basis_mode="ratio",
-                                     basis_local=.02, basis_hist=.01, cross_adj=.001, local_weight=.6)])
+    filled = pd.DataFrame([calculated(estimation_method="spread_nearest", anchors="M+1",
+                                      anchor_price=101.0, spread_smoothed=1.5)])
     out = enrich_input(raw, filled, cfg, [mapping()], DAY, DAY)
     added = out.iloc[-1]
-    assert added.estimation_method == "ratio_local_history_cross"
+    assert added.estimation_method == "spread_nearest"
     assert added.curve_eex_method == "exact"
-    assert added.curve_local_weight == .6 and added.curve_basis_mode == "ratio"
+    assert added.curve_anchors == "M+1" and added.curve_spread_smoothed == 1.5
     assert out.iloc[0].estimation_method == "none"
 
 

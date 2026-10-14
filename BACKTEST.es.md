@@ -1,5 +1,7 @@
 # Evaluar el relleno: forma de curva, backtest y variantes locales
 
+> **VWAPS2:** documento heredado de VWAPS. La infraestructura (comandos, mapeo, salidas, MLflow, shape) es la misma; la metodología de relleno es la de spreads y sus parámetros están en `[spread]`. Ver [ALGORITMO.md](ALGORITMO.md). Las menciones a `basis_mode`, `tau_log`, historia, `cross` o `[eex_fallback]` no aplican aquí.
+
 [English](BACKTEST.md) · [Algoritmo](ALGORITMO.md) · [Configuración y comandos](README.es.md)
 
 Esta guía distingue el comportamiento implementado de las propuestas que todavía no existen.

@@ -21,8 +21,7 @@ DAY = date(2026, 9, 21)
 def cfg(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text("", encoding="utf-8")
-    return replace(load_config(path), tenors=["M+1", "M+2"], layer_hist="off",
-                   layer_cross=False, layer_arbitrage=False, warmup_days=0,
+    return replace(load_config(path), tenors=["M+1", "M+2"], layer_arbitrage=False, warmup_days=0,
                    eex_curves_dir=tmp_path / "curves")
 
 

@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 
 from vwaps.config import load_config, validate_config
-from vwaps.eex_fallback import EexFallback
 from vwaps.hours import hours_fn
 from vwaps.io_eex import EexBook, REQUIRED
 from vwaps.tenors import Period
@@ -70,35 +69,6 @@ def test_snapshot_and_delivered_fixings_respect_cutoff_without_contract_carryfor
     assert (NOV, DEC) not in quotes
     assert quotes[(DEC, JAN)] == 130
     assert quotes[(delivered, date(2026, 10, 5))] == 40
-
-
-@pytest.mark.parametrize("method", ["simple", "ewma"])
-def test_fallback_price_and_spread_windows_both_end_at_allowed_publication(method):
-    rows = [(date(2026, 10, d), "Month", start, price)
-            for d, left, spread in ((1, 100, 20), (2, 110, 21), (5, 120, 22),
-                                    (6, 130, 23), (7, 900, 1e9))
-            for start, price in ((NOV, left), (DEC, left + spread))]
-    cfg = replace(load_config(ROOT / "config.toml"), eex_offset_days=-1,
-                  fallback_price_method=method, fallback_price_window=2,
-                  fallback_spread_window=2)
-    hours = hours_fn("Base", "Europe/Berlin")
-    result = EexFallback(book(rows), hours, cfg).price(DAY, Period("Month", DEC, JAN))
-    weight = 1 if method == "simple" else 2 ** (-1 / cfg.fallback_ewma_halflife)
-    assert result.price == pytest.approx((120 * weight + 130) / (weight + 1) + 22.5)
-    assert result.trace["eex_cutoff_date"] == "2026-10-06"
-    assert result.trace["eex_asof"] == "2026-10-06"
-    assert result.trace["eex_offset_days"] == -1
-    assert result == EexFallback(book(rows[:-2]), hours, cfg).price(DAY, Period("Month", DEC, JAN))
-    observations = result.trace["price_average"]["observations"]
-    assert [r["trade_date"] for r in observations] == ["2026-10-05", "2026-10-06"]
-    assert result.trace["spread_steps"][0]["observations"][-1]["trade_date"] == "2026-10-06"
-
-
-def test_lag_can_make_smoothing_window_incomplete_instead_of_using_forbidden_today():
-    market = book([(date(2026, 10, d), "Month", NOV, 100 + d) for d in (6, 7)])
-    cfg = replace(load_config(ROOT / "config.toml"), eex_offset_days=-1, fallback_price_window=2)
-    assert EexFallback(market, hours_fn("Base", "Europe/Berlin"), cfg).price(
-        DAY, Period("Month", NOV, DEC)) is None
 
 
 @pytest.mark.parametrize("value", [1, True, -1.5, "-1", None])

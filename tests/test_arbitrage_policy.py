@@ -1,5 +1,6 @@
 """Contract reconstruction is opt-in; EEX reference pricing stays available."""
 
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -81,15 +82,16 @@ def test_quarter_reconstruction_from_own_months_requires_explicit_enablement(tmp
         assert quarter["estimation_method"] == "unavailable"
 
 
-def test_disabled_arbitrage_still_prices_eex_quarter_from_months_for_local_adjustment(tmp_path):
+def test_disabled_arbitrage_still_prices_eex_quarter_from_months_for_spreads(tmp_path):
     cfg = configured(tmp_path)
     assert cfg.layer_arbitrage is False
     curve = mapping()
     # There is no EEX quarterly quote. The EEX reference pricer must still
-    # build Q4 from its three monthly settlements before applying own basis.
+    # build Q4 from its three monthly settlements.
     book = EexBook(pd.DataFrame([
         (DAY, "Month", date(2026, month, 1), 100.0) for month in (10, 11, 12)
     ], columns=REQUIRED))
+    # Default scope: only quarters anchor quarters, so Q+1 is orange (EEX EWMA).
     result = CurveFiller(cfg, observations(["M+1"]), [curve], {curve.key: book}).run(DAY, DAY)
     assert not result.errors
     output = result.filled.set_index("tenor")
@@ -98,7 +100,14 @@ def test_disabled_arbitrage_still_prices_eex_quarter_from_months_for_local_adjus
     quarter = output.loc["Q+1"]
     assert quarter["eex_method"] == "strip"
     assert quarter["eex_settle"] == pytest.approx(100.0)
-    assert quarter["source"] == "eex+local"
+    assert quarter["source"] == "eex_ewma"
+    assert quarter["price"] == pytest.approx(100.0)
+    # With anchors of any kind, the own month anchors the quarter:
+    # 120 + (EEX Q4 - EEX Oct) = 120 + (100 - 100).
+    wide = replace(cfg, anchor_scope="any")
+    output = CurveFiller(wide, observations(["M+1"]), [curve], {curve.key: book}).run(DAY, DAY).filled
+    quarter = output.set_index("tenor").loc["Q+1"]
+    assert quarter["source"] == "eex_spread"
     assert quarter["data_origin"] == "estimated"
-    assert quarter["estimation_method"] == "ratio_local"
-    assert 100.0 < quarter["price"] < 120.0
+    assert quarter["estimation_method"] == "spread_nearest"
+    assert quarter["price"] == pytest.approx(120.0)

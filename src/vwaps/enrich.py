@@ -73,20 +73,7 @@ def _method(row: dict, cfg: Config) -> str:
         return explicit
     if source == "missing":
         return "none"
-    if source in ("eex", "arbitrage"):
-        return source
-    mode = _text(row.get("basis_mode", "")) or cfg.basis_mode
-    weight = _number(row.get("local_weight"))
-    components = []
-    if not math.isnan(_number(row.get("basis_local"))) and weight > 0:
-        components.append("local")
-    if not math.isnan(_number(row.get("basis_hist"))) and (math.isnan(weight) or weight < 1):
-        components.append("history")
-    if not math.isnan(_number(row.get("cross_adj"))) and (math.isnan(weight) or weight < 1):
-        components.append("cross")
-    if not components:
-        components = [{"eex+local": "local", "eex+hist": "history", "eex+cross": "cross"}.get(source, source)]
-    return "_".join([mode, *components])
+    return source
 
 
 def enrich_input(
