@@ -1,0 +1,153 @@
+# ============================================================================
+#  vwaps - curve filling configuration (see ALGORITHM.md / ALGORITMO.md)
+#  Relative paths are resolved from THIS file's directory.
+# ============================================================================
+
+[paths]
+# Own VWAP input (xlsx or csv; glob patterns such as data/vwaps_*.xlsx work).
+# Override per command with --vwap. Point this at the original input on your machine.
+vwap_input     = "data/vwaps.xlsx"
+# (product, region, unit) in your input -> EEX file. Create/review with `python run.py mapping`.
+# Only products marked use = fill receive a completed curve.
+mapping        = "mappings/products.csv"
+# EEX curve root (eex_file entries in the mapping are relative to this path).
+eex_curves_dir = "../eex_scraper/output/curves/POWER"
+output_dir     = "output"
+
+
+[layers]
+# Enabled adjustment layers (see the algorithm guide for the full cascade).
+local       = true     # EEX adjusted using TODAY's own VWAPs in nearby contracts
+correlation = false    # Extension 1: measured weights between tenor groups
+cross       = false    # Extension 2: basis surprises from correlated products
+# How to use the historical adjustment, alone or blended with today's anchors:
+#   on   = use available history in the selected ratio/additive mode
+#   off  = omit history; without local/cross, try the smoothed EEX fallback
+#   auto = use it where past own observations show improvement over EEX
+#          (assessed by group: short, month, quarter and long).
+hist        = "auto"
+arbitrage   = false    # Opt in to reconstruct unresolved targets from own/already estimated contracts
+
+
+[eex]
+# Latest publication allowed: reference date + offset_days (calendar days).
+# 0: today's publication if present, otherwise the latest earlier one.
+# -1: exclude today; -2: exclude today and yesterday. Positive values are invalid.
+# The engine logs the cutoff and actual publication used for each curve/date.
+# History learns same-date own/EEX pairs only once their publication is allowed.
+offset_days = 0
+# max_stale_days: maximum age relative to the reference date (0 = unlimited).
+# warn_stale_days: log an ERROR once the publication is this many days old.
+max_stale_days  = 0
+warn_stale_days = 3
+
+
+[timezones]
+# Used to draft the mapping (`python run.py mapping`). The mapping's timezone
+# column takes precedence after that.
+default = "Europe/Berlin"
+GB      = "Europe/London"
+IE      = "Europe/Dublin"
+PT      = "Europe/Lisbon"
+GR      = "Europe/Athens"
+RO      = "Europe/Bucharest"
+BG      = "Europe/Sofia"
+FI      = "Europe/Helsinki"
+
+
+[targets]
+# Target tenors defining each day's completed curve.
+tenors = [
+    "D+1", "D+2", "D+3",
+    "WE", "WE+1", "WE+2", "WE+3",
+    "BOW", "W+1", "W+2", "W+3", "W+4",
+    "BOM", "M+1", "M+2", "M+3", "M+4", "M+5", "M+6", "M+7", "M+8", "M+9", "M+10",
+    "Q+1", "Q+2", "Q+3", "Q+4", "Q+5", "Q+6", "Q+7", "Q+8",
+    "Sum+1", "Sum+2", "Sum+3", "Win+1", "Win+2", "Win+3",
+    "Cal+1", "Cal+2", "Cal+3",
+]
+
+
+[conventions]
+# Interpret relative labels in own VWAPs. Check these conventions against
+# real data with `python run.py detect-conventions`.
+day            = "calendar"   # D+n: calendar days or business days (Monday-Friday)
+weekend_offset = 0            # Own WE+n means weekend n+offset (WE+0 = the next one)
+
+
+[method]
+# auto: select ratio or additive for each target; record the choice and reason.
+# ratio: always use proportional adjustments, retaining ratio safety filters.
+# additive: always use price differences, which do not divide by EEX prices.
+# See the README for the decision rules and all configurable settings.
+basis_mode         = "auto"      # auto: select safely per target; ratio/additive: force one mode
+min_volume         = 0           # Minimum anchor volume; original inputs and pre-shape prices are preserved
+tau_log            = 0.5         # Anchor reach along the curve (log days to delivery)
+other_kind_weight  = 0.6         # Weight for another contract kind (Month vs Quarter...)
+shrink_k           = 1.0         # Today's weight w = W / (W + k); evidence needed to trust today
+ewma_halflife_days = 10          # Historical adjustment memory (observation days)
+max_anchor_dev     = 0           # If >0, reject extreme anchors from refill; shape may separately adjust final prices
+ratio_eex_floor    = 1.0         # Reject near-zero ratio anchors; auto also uses additive for near-zero targets
+max_ratio_deviation = 1.0       # Maximum |VWAP/EEX - 1| for ratio anchors and final adjustments
+hist_max_age_days  = 60          # Expire factors this long after the latest real observation
+hist_auto_min_obs  = 10          # Effective comparisons before auto decides; use history during warmup
+
+
+[eex_fallback]
+# Used only when no local/historical/cross adjustment is available.
+# Never copy raw EEX into a missing curve point. Require complete windows.
+price_method = "ewma"          # simple: equal weights; ewma: normalized exponential weights
+price_window = 5               # Latest EEX publication dates, including the available current date
+ewma_halflife = 2.0            # Weight halves every 2 observations inside the finite price window
+spread_window = 9              # Simple mean of raw consecutive-month spreads over this many dates
+anchor_months = 2              # First months from the current calendar month: 2 means M+0 and M+1
+
+
+[shape]
+# Diagnostic threshold for "nearly coherent" aggregates in the curve's price unit.
+# This reports residual violations; it is not a hard solver constraint.
+coherence_tolerance = 0.01
+# Optional post-refill processing: off disables it; audit proposes; adjust applies.
+# Original input observations and pre-shape prices remain available for audit.
+mode = "off"
+adjust_originals = false       # Explicit permission to change final prices derived from originals
+smoothness_weight = 1.0        # Penalize irregular correction to raw eex_settle, not raw price seasonality
+coherence_weight = 10.0        # Soft aggregation penalty; does not enforce exact Q/Cal equality
+max_abs_adjustment = 10.0      # Uncalibrated starting limit in each curve's price unit; choose per use case
+original_weight = 10.0         # Fidelity to originals if changes are allowed; must be at least 1
+
+
+[correlation]
+# Extension 1 (enabled by [layers] correlation).
+halflife_days = 20     # Calendar-day decay between paired observations
+prior_obs     = 8      # Sparse overlap favors other_kind_weight; more data favors measured correlation
+
+
+[cross]
+# Extension 2 (enabled by [layers] cross). Eligible mapped products use fill or helper.
+min_corr      = 0.5    # Minimum measured correlation for using another product
+min_obs       = 8      # Minimum effective number of paired observations
+halflife_days = 20     # Calendar-day decay for correlation and beta between observations
+
+
+[run]
+# global: ignore optional model-parameter columns in the product mapping.
+# individual: apply each row's model settings; blank cells inherit this TOML.
+# Add all supported columns with: python run.py mapping --with-parameters
+# Mapping files can be CSV or XLSX (first sheet), with one row per full identity.
+configuration_mode = "global"
+# 0 = all available original history: daily and refill use the same memory.
+# N > 0 limits warmup and may differ from a longer refill.
+# daily needs accumulated input or a glob that includes previous originals.
+warmup_days = 0
+
+
+[vwap_columns]
+# Column names in the own VWAP input file.
+reference_date = "reference_date"
+product        = "product"
+region         = "region"
+unit           = "unit"
+tenor          = "tenor2"
+vwap           = "vwap"
+volume         = "total_volume"

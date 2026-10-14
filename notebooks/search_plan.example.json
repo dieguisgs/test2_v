@@ -1,0 +1,20 @@
+{
+  "search_scope": "individual",
+  "selected_curves": [
+    {"product": "SYNTHETIC_POWER", "region": "DE", "unit": "EUR/MWh"},
+    {"product": "SYNTHETIC_POWER", "region": "FR", "unit": "EUR/MWh"}
+  ],
+  "parameter_grid": {
+    "basis_mode": ["auto", "ratio", "additive"],
+    "layer_hist": ["off", "auto"]
+  },
+  "product_grids": [
+    {
+      "product": "SYNTHETIC_POWER", "region": "DE", "unit": "EUR/MWh",
+      "parameter_grid": {
+        "basis_mode": ["auto", "additive"],
+        "tau_log": [0.35, 0.75]
+      }
+    }
+  ]
+}

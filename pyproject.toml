@@ -1,0 +1,35 @@
+# Run this project directly with `python run.py`; no package installation is needed.
+# Declare Python and dependencies so `uv sync` can create .venv.
+# There is no build step or installable package.
+
+[project]
+name = "vwaps-curve-filler"
+version = "0.1.0"
+description = "Fill complete power curves using own VWAPs and EEX settlements"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+notebook = [
+    "jupyterlab>=4",
+    "ipywidgets>=8",
+    "plotly>=5",
+]
+experiment = [
+    "mlflow>=3.5,<4",
+    "psutil>=6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
